@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>아이템 정보</title>
+    <style>
+        /* 동일한 스타일 적용 */
+        /* 이전 index.html에서 사용한 스타일을 그대로 가져옵니다. */
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>아이템 정보</h1>
+        <p>게임 내 아이템에 대한 설명을 제공합니다..</p>
+    </header>
+
+    <div class="search-container">
+        <input type="text" id="search-input" placeholder="검색어를 입력하세요">
+        <button onclick="searchFunction()">검색</button>
+    </div>
+
+    <div class="content">
+        <!-- 데이터가 블럭 형식으로 나오게 할 부분 -->
+        <div class="block">
+            <h2>기본 정보 항목 1</h2>
+            <p>상세 설명</p>
+        </div>
+        <div class="block">
+            <h2>기본 정보 항목 2</h2>
+            <p>상세 설명</p>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2024 연습용 서버. All rights reserved.</p>
+    </footer>
+
+    <script>
+        function searchFunction() {
+            let keyword = document.getElementById("search-input").value;
+            alert("검색어: " + keyword);
+            // 검색 처리 로직을 추가할 수 있습니다.
+        }
+    </script>
+</body>
+
+</html>
