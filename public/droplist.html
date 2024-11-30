@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>드랍리스트</title>
+    <style>
+        /* 기본 박스 스타일 */
+        .result-box {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+
+        /* 제목 스타일 */
+        .result-title {
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        /* 검색 창 스타일 */
+        #searchBox {
+            width: 80%;
+            padding: 10px;
+            font-size: 1.1em;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        /* 검색 버튼 스타일 */
+        #searchButton {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #searchButton:hover {
+            background-color: #45a049;
+        }
+
+        /* 검색 박스 레이아웃 */
+        .search-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        /* 로딩 인디케이터 */
+        #loading {
+            display: none;
+            font-size: 1.2em;
+            color: #4CAF50;
+        }
+
+        /* 드랍 아이템들을 가로로 배치 */
+        .drop-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 10px; /* 드랍 아이템이 바로 이어지도록 */
+        }
+
+        .drop-items .drop-item {
+            flex: 0 0 22%; /* 각 아이템을 4개씩 가로로 배치 */
+            border: 1px solid #ccc;
+            padding: 8px;
+            border-radius: 5px;
+            background-color: #f1f1f1;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>드랍리스트</h1>
+    
+    <!-- 검색 창 및 검색 버튼 -->
+    <div class="search-container">
+        <input type="text" id="searchBox" placeholder="검색어를 입력하세요..." />
+        <button id="searchButton">검색</button>
+    </div>
+
+    <!-- 로딩 인디케이터 -->
+    <div id="loading">로딩 중...</div>
+
+    <!-- 검색 결과 -->
+    <div id="results"></div>
+
+    <script>
+        // 검색에 사용할 파일 목록
+        const files = {
+            "npc": "/assets/npc.json",
+            "droplist": "/assets/droplist.json",
+            "droplist_boss": "/assets/droplist_boss.json",
+            "spawnlist": "/assets/spawnlist.json",
+            "mapids": "/assets/mapids.json",
+            "event_boss_time": "/assets/event_boss_time.json"
+        };
+
+        // 검색 함수
+        async function search() {
+            const query = document.getElementById('searchBox').value.toLowerCase();
+            const resultsContainer = document.getElementById('results');
+            const loadingIndicator = document.getElementById('loading');
+            resultsContainer.innerHTML = '';  // 이전 검색 결과 초기화
+            loadingIndicator.style.display = 'block';  // 로딩 인디케이터 표시
+
+            if (!query) {
+                alert("검색어를 입력해주세요.");
+                return;
+            }
+
+            try {
+                const data = await Promise.all(Object.values(files).map(file => fetchData(file)));
+                const [npcData, droplistData, droplistBossData, spawnlistData, mapidData, eventBossTimeData] = data;
+
+                console.log('NPC Data:', npcData);
+                console.log('Droplist Data:', droplistData);
+                console.log('Droplist Boss Data:', droplistBossData);
+                console.log('Spawnlist Data:', spawnlistData);
+                console.log('Mapid Data:', mapidData);
+                console.log('Event Boss Time Data:', eventBossTimeData);
+
+                const filteredNPCs = npcData.filter(npc => npc.name.toLowerCase().includes(query) && npc.impl === "L1Monster");
+
+                if (filteredNPCs.length === 0) {
+                    resultsContainer.innerHTML = "<p>검색 결과가 없습니다.</p>";
+                    return;
+                }
+
+                for (const npc of filteredNPCs) {
+                    const droplistEntries = droplistData.filter(drop => drop.mobId === npc.npcid);
+                    const droplistBossEntries = droplistBossData.filter(drop => drop.mobId === npc.npcid);
+                    const spawnlistEntries = spawnlistData.filter(spawn => spawn.npc_templateid === npc.npcid);
+                    const eventBossEntries = eventBossTimeData.filter(event => event.npcid === npc.npcid);
+
+                    // 스폰리스트에서 mapid 확인
+                    const mapids = spawnlistEntries.map(entry => entry.mapid);
+                    const locationNames = mapids.map(mapid => {
+                        const mapData = mapidData.find(map => map.mapid === mapid);
+                        return mapData ? mapData.locationname : '위치 정보 없음';
+                    });
+
+                    // 보스 체크
+                    const isBoss = droplistBossEntries.length > 0;
+
+                    // 결과 출력
+                    displayResult(npc, droplistEntries, droplistBossEntries, locationNames, isBoss);
+                }
+            } catch (error) {
+                console.error("데이터를 가져오는 중 오류가 발생했습니다:", error);
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        // JSON 파일을 fetch하는 함수
+        async function fetchData(url) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`네트워크 응답이 정상이 아닙니다. 상태 코드: ${response.status}`);
+            }
+            return await response.json();
+        }
+
+        // 검색 결과를 출력하는 함수
+        function displayResult(npc, droplistEntries, droplistBossEntries, locationNames, isBoss) {
+            const resultsContainer = document.getElementById('results');
+            const resultBox = document.createElement('div');
+            resultBox.className = 'result-box';
+
+            let dropInfo = '';
+            let locationInfo = locationNames.join(', ');
+
+            // 드랍 아이템 (일반) 처리
+            if (droplistEntries.length > 0) {
+                dropInfo += '<strong>드랍 아이템 (일반):</strong><div class="drop-items">';
+                droplistEntries.forEach(drop => {
+                    dropInfo += `
+                        <div class="drop-item">
+                            <strong>아이템 ID:</strong> ${drop.itemId}<br>
+                            <strong>아이템명:</strong> ${drop.itemname}<br>
+                            <strong>최소:</strong> ${drop.min}<br>
+                            <strong>최대:</strong> ${drop.max}<br>
+                            <strong>확률:</strong> ${parseFloat(drop.chance / 1000000).toString()}%
+                        </div>
+                    `;
+                });
+                dropInfo += '</div>';
+            } else {
+                dropInfo += '<strong>드랍 아이템 (일반):</strong> 없음<br>';
+            }
+
+            // 드랍 아이템 (보스) 처리
+            if (droplistBossEntries.length > 0) {
+                dropInfo += '<strong>드랍 아이템 (보스):</strong><div class="drop-items">';
+                droplistBossEntries.forEach(drop => {
+                    dropInfo += `
+                        <div class="drop-item">
+                            <strong>아이템 ID:</strong> ${drop.itemId}<br>
+                            <strong>아이템명:</strong> ${drop.itemname}<br>
+                            <strong>최소:</strong> ${drop.min}<br>
+                            <strong>최대:</strong> ${drop.max}<br>
+                            <strong>확률:</strong> ${parseFloat(drop.chance / 1000000).toString()}%
+                        </div>
+                    `;
+                });
+                dropInfo += '</div>';
+            } else {
+                dropInfo += '<strong>드랍 아이템 (보스):</strong> 없음<br>';
+            }
+
+            // NPC 정보 및 드랍 아이템 출력
+            const npcInfo = `
+                <div class="result-title">${npc.name} (npcid: ${npc.npcid}) ${isBoss ? '<span style="color: red;">보스</span>' : ''}</div>
+                <div class="result-info">
+                    <div><strong>레벨:</strong> ${npc.lvl || '없음'}</div>
+                </div>
+                <div class="result-info">
+                    <div><strong>위치:</strong> ${locationInfo || '위치 정보 없음'}</div>
+                </div>
+                <div class="result-info">
+                    <div><strong>드롭 아이템:</strong> ${dropInfo}</div>
+                </div>
+            `;
+
+            resultBox.innerHTML = npcInfo;
+            resultsContainer.appendChild(resultBox);
+        }
+
+        // 검색 버튼 클릭 시 함수 실행
+        document.getElementById('searchButton').addEventListener('click', search);
+    </script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPC</title>
+    <style>
+        /* 기본 박스 스타일 */
+        .result-box {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+
+        /* 제목 스타일 */
+        .result-title {
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        /* 항목들을 가로로 나열 */
+        .result-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .result-info div {
+            width: calc(12.5% - 10px); /* 8개 항목을 가로로 배치 */
+        }
+
+        /* 검색 창 스타일 */
+        #searchBox {
+            width: 80%;
+            padding: 10px;
+            font-size: 1.1em;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        /* 검색 버튼 스타일 */
+        #searchButton {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #searchButton:hover {
+            background-color: #45a049;
+        }
+
+        /* 검색 박스 레이아웃 */
+        .search-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>NPC</h1>
+    
+    <!-- 검색 창 및 검색 버튼 -->
+    <div class="search-container">
+        <input type="text" id="searchBox" placeholder="검색어를 입력하세요..." />
+        <button id="searchButton">검색</button>
+    </div>
+    <div>
+        <label>
+            <input type="checkbox" id="merchantCheck" /> 상인
+        </label>
+        <label>
+            <input type="checkbox" id="teleporterCheck" /> 순간이동
+        </label>
+        <label>
+            <input type="checkbox" id="npcCheck" /> 기본NPC
+        </label>
+    </div>
+    <div id="results"></div>
+
+    <script>
+        // 검색에 사용할 파일 목록
+        const files = {
+            "npc": "/assets/npc.json",
+            "spawnlist_npc": "/assets/spawnlist_npc.json",
+            "mapids": "/assets/mapids.json",
+        };
+
+        // 검색 함수
+        async function search() {
+            const query = document.getElementById('searchBox').value.toLowerCase();
+            const resultsContainer = document.getElementById('results');
+            resultsContainer.innerHTML = '';  // 이전 검색 결과 초기화
+
+            // 체크된 항목들 가져오기
+            const selectedNpcTypes = [];
+            if (document.getElementById('merchantCheck').checked) selectedNpcTypes.push("L1Merchant");
+            if (document.getElementById('teleporterCheck').checked) selectedNpcTypes.push("L1Teleporter");
+            if (document.getElementById('npcCheck').checked) selectedNpcTypes.push("L1Npc");
+
+            if (!query && selectedNpcTypes.length === 0) {
+                alert("검색어를 입력하거나 NPC 유형을 선택해주세요.");
+                return;
+            }
+
+            try {
+            const data = await Promise.all(Object.values(files).map(file => fetchData(file)));
+            const [npcData, spawnlist_npcData, mapidsData] = data;
+
+            // 검색어에 해당하는 NPC 필터링
+            let filteredNPCs = npcData.filter(npc => npc.name.toLowerCase().includes(query));
+
+            // 체크된 npc.impl에 맞는 NPC만 필터링
+            if (selectedNpcTypes.length > 0) {
+                filteredNPCs = filteredNPCs.filter(npc => selectedNpcTypes.includes(npc.impl));
+            }
+
+            if (filteredNPCs.length === 0) {
+                resultsContainer.innerHTML = "<p>검색 결과가 없습니다.</p>";
+                return;
+            }
+
+                // 각 NPC에 대해 출현 위치 찾기
+                for (const npc of filteredNPCs) {
+                    // spawnlist_npcData에서 npc_templateid와 npc.npcid를 비교하여 일치하는 항목 찾기
+                    const spawnlist_npcEntries = spawnlist_npcData.filter(entry => entry.npc_templateid === npc.npcid);
+                    for (const entry of spawnlist_npcEntries) {
+                        // 각 spawnlist_npcEntry의 mapid와 mapidsData를 연결하여 위치 정보 가져오기
+                        const map = mapidsData.find(map => map.mapid === entry.mapid);
+                        if (map) {
+                            displayResult(npc, map);
+                        } else {
+                            console.log(`지도 정보가 없음: npcId ${npc.npcid}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("데이터를 가져오는 중 오류가 발생했습니다:", error);
+            }
+        }
+
+        // 파일 데이터를 fetch하는 함수
+        async function fetchData(url) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`네트워크 응답이 정상이 아닙니다. 상태 코드: ${response.status}`);
+            }
+            return await response.json();
+        }
+
+        // 검색 결과 표시 함수
+        function displayResult(npc, map) {
+            const resultsContainer = document.getElementById('results');
+            const resultBox = document.createElement('div');
+            resultBox.className = 'result-box';
+
+            // 모든 항목을 한 번에 표시
+            const npcInfo = `
+                <div class="result-title">${npc.name}</div>
+                <div class="result-info">
+                    <div><strong>npcid:</strong> ${npc.npcid || '없음'}</div>
+                    <div><strong>npc종류:</strong> ${npc.impl || '없음'}</div>
+                    <div><strong>출현 위치:</strong> ${map.locationname || '없음'}</div>
+                </div>
+            `;
+
+            resultBox.innerHTML = npcInfo;
+            resultsContainer.appendChild(resultBox);
+        }
+
+        // 검색 버튼 클릭 시 검색 실행
+        document.getElementById('searchButton').addEventListener('click', search);
+
+        // 체크박스 클릭 시 처리
+        document.getElementById('merchantCheck').addEventListener('click', function() {
+        document.getElementById('teleporterCheck').checked = false;
+        document.getElementById('npcCheck').checked = false;
+        });
+
+        document.getElementById('teleporterCheck').addEventListener('click', function() {
+        document.getElementById('merchantCheck').checked = false;
+        document.getElementById('npcCheck').checked = false;
+        });
+
+        document.getElementById('npcCheck').addEventListener('click', function() {
+        document.getElementById('merchantCheck').checked = false;
+        document.getElementById('teleporterCheck').checked = false;
+    });
+
+    </script>
+</body>
+</html>
